@@ -6,35 +6,28 @@ GUI for measuring ice thickness
 # To minimize size of distributable .exe file import specific functions
 # from libraries where possible
 from glob import glob
-
-from numpy import (
-    amax,
-    asarray,
-    nan_to_num,
-    log,
-    clip,
-    average,
-)
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import mrcfile as mrc
 import numpy as np
-from os.path import splitext
+from os.path import splitext, dirname
 from os.path import split as pathsplit
-from os.path import exists as pathexists
 from os.path import join as pathjoin
-from os.path import dirname
 from PIL.Image import open as tifopen
 from PIL.Image import fromarray
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtCore, QtGui
+from PyQt5.QtWidgets import (QLabel, QPushButton, QFileDialog,
+                             QApplication, QSpinBox, QComboBox,
+                             QGraphicsProxyWidget)
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QIcon
 from scipy.interpolate import interp1d
 import ser
 from sys import exit as sysexit
 
 
 def is_image_renormalized(array):
-    """"Check for bit compression within image."""
+    """Check for bit compression within image."""
     dtype = array.dtype
     if np.issubdtype(dtype, np.integer):
         drange = np.iinfo(dtype).max - np.iinfo(dtype).min
@@ -108,7 +101,7 @@ def set_raw_image(data, resetiso_line=True, resetposition=True):
         img.scale(1.0, 1.0)
         img.translate(0, 0)
     if resetiso_line:
-        iso_line.setValue(amax(data))
+        iso_line.setValue(np.amax(data))
         update_iso_curve()
         # iso.setData(pg.gaussianFilter(data, (2, 2)))
 
@@ -117,7 +110,7 @@ def load_image(yflip=True, transpose=False):
     """Action taken after the load image button is pressed"""
 
     # Get filename from open file dialog
-    fnam = QtGui.QFileDialog.getOpenFileName(
+    fnam = QFileDialog.getOpenFileName(
         None, "Open image file", "", "*.tif *.tiff *.ser *.mrc"
     )
 
@@ -137,7 +130,7 @@ def load_image(yflip=True, transpose=False):
         def openfunc(file):
             return ser.serReader(file)["data"]
 
-    data = asarray(openfunc(fnam[0]))
+    data = np.asarray(openfunc(fnam[0]))
     if yflip:
         data = data[::-1]
 
@@ -174,8 +167,8 @@ def measure_ice_thickness():
     # Calculate thickness map using calibration curve
     # clip function ensures intensities > I0 (due to noise) are not
     # mapped into negative values for ice thickness.
-    thickness_map = nan_to_num(
-        t(log(clip(I0 / img_filt, 1.0, None))), neginf=0, posinf=-1
+    thickness_map = np.nan_to_num(
+        t(np.log(np.clip(I0 / img_filt, 1.0, None))), neginf=0, posinf=-1
     )
 
     # Display ice thickness map
@@ -189,7 +182,7 @@ def save_ice_thickness_map():
     """Save the generated ice thickness map, in pdf,png or tiff format"""
     endings = ("pdf (*.pdf)", "png (*.png)", "tif (*.tif)")
     # Get output filename from GUI dialog
-    fnam, ending = QtGui.QFileDialog.getSaveFileName(
+    fnam, ending = QFileDialog.getSaveFileName(
         None, "Save thickness map", "", ";;".join(endings)
     )
 
@@ -246,7 +239,7 @@ def bin2d(array, factor):
     ns = (s[0] // factor, factor, s[1] // factor, factor)
 
     # Return binned array
-    return average(
+    return np.average(
         array[: t[0], : t[1]].reshape(*ns),
         axis=(1, 3),
     )
@@ -254,16 +247,16 @@ def bin2d(array, factor):
 
 def nocalibrationfile(fnam):
     # Get filename from open file dialog
-    fnam = QtGui.QFileDialog.getOpenFileName(
+    fnam = QFileDialog.getOpenFileName(
         None, "Open calibration file", "", "*.h5 *.hdf"
     )
     return fnam[0]
     """Error message for when calibration files cannot be found."""
     errmsg = "Can't find any .h5 calibration files in directory {0}".format(fnam)
     print(errmsg)
-    w1 = QtGui.QLabel(errmsg)
+    w1 = QLabel(errmsg)
     w1.show()
-    QtGui.QApplication.instance().exec_()
+    QApplication.instance().exec_()
     sysexit()
 
 
@@ -289,7 +282,7 @@ def load_calibration_data(path=None):
 
     Parameters
     ----------
-    fnam : string
+    path : string
         filename of .h5 calibration data
 
     Returns
@@ -333,12 +326,12 @@ win.setWindowTitle("MeasureIce")
 win.resize(1600, 600)
 
 # icon for plot window
-app_icon = QtGui.QIcon("icons/icon.ico")
-app_icon.addFile("icons/24x24.png", QtCore.QSize(24, 24))
-app_icon.addFile("icons/32x32.png", QtCore.QSize(32, 32))
-app_icon.addFile("icons/48x48.png", QtCore.QSize(48, 48))
+app_icon = QIcon("icons/icon.ico")
+app_icon.addFile("icons/24x24.png", QSize(24, 24))
+app_icon.addFile("icons/32x32.png", QSize(32, 32))
+app_icon.addFile("icons/48x48.png", QSize(48, 48))
 app_icon.addFile(
-    "icons/256x256.png", QtCore.QSize(256, 256)
+    "icons/256x256.png", QSize(256, 256)
 )
 win.setWindowIcon(app_icon)
 
@@ -403,8 +396,8 @@ def imageHoverEvent(event):
     # Get mouse position
     pos = event.pos()
     i, j = pos.y(), pos.x()
-    i = int(clip(i, 0, tmap.image.shape[0] - 1))
-    j = int(clip(j, 0, tmap.image.shape[1] - 1))
+    i = int(np.clip(i, 0, tmap.image.shape[0] - 1))
+    j = int(np.clip(j, 0, tmap.image.shape[1] - 1))
 
     # Get value under mouse
     val = tmap.image[i, j]
@@ -423,28 +416,28 @@ def imageHoverEvent(event):
 # Buttons #
 ###########
 tmap.hoverEvent = imageHoverEvent
-proxyloadBtn = QtGui.QGraphicsProxyWidget()
-proxybinBtn = QtGui.QGraphicsProxyWidget()
+proxyloadBtn = QGraphicsProxyWidget()
+proxybinBtn = QGraphicsProxyWidget()
 
 # Button to load raw ice thickness
-loadBtn = QtGui.QPushButton("Load raw image")
+loadBtn = QPushButton("Load raw image")
 proxyloadBtn.setWidget(loadBtn)
 loadBtn.clicked.connect(lambda: load_image(yflip=True))
 
 # Button to bin raw image
-# binBtn = QtGui.QPushButton("Bin image")
+# binBtn = QPushButton("Bin image")
 # proxybinBtn.setWidget(binBtn)
 # binBtn.clicked.connect(bin_image)
 
 # Measure ice thickness button
-proxyMeasureBtn = QtGui.QGraphicsProxyWidget()
-MeasureBtn = QtGui.QPushButton("Measure ice thickness")
+proxyMeasureBtn = QGraphicsProxyWidget()
+easureBtn = QPushButton("Measure ice thickness")
 proxyMeasureBtn.setWidget(MeasureBtn)
-MeasureBtn.clicked.connect(measure_ice_thickness)
+easureBtn.clicked.connect(measure_ice_thickness)
 
 # Save ice thickness button
-proxySaveBtn = QtGui.QGraphicsProxyWidget()
-SaveBtn = QtGui.QPushButton("Save ice thickness map")
+proxySaveBtn = QGraphicsProxyWidget()
+SaveBtn = QPushButton("Save ice thickness map")
 proxySaveBtn.setWidget(SaveBtn)
 SaveBtn.clicked.connect(save_ice_thickness_map)
 
@@ -453,89 +446,93 @@ SaveBtn.clicked.connect(save_ice_thickness_map)
 #######################
 
 # Calibrations menu
-chooseCalibration = QtGui.QComboBox()
-proxychooseCalibration = QtGui.QGraphicsProxyWidget()
+chooseCalibration = QComboBox()
+proxychooseCalibration = QGraphicsProxyWidget()
 proxychooseCalibration.setWidget(chooseCalibration)
-chooseCalibrationlabel = QtGui.QLabel()
+chooseCalibrationlabel = QLabel()
 chooseCalibrationlabel.setText("Calibration:")
-chooseCalibrationlabel.setAlignment(QtCore.Qt.AlignCenter)
+chooseCalibrationlabel.setAlignment(Qt.AlignCenter)
 chooseCalibrationlabel.setMaximumHeight(20)
 chooseCalibrationlabel.setMaximumWidth(70)
 chooseCalibrationlabel.setStyleSheet("background-color: black; color:white")
-proxychooseCalibrationlabel = QtGui.QGraphicsProxyWidget()
+proxychooseCalibrationlabel = QGraphicsProxyWidget()
 proxychooseCalibrationlabel.setWidget(chooseCalibrationlabel)
 chooseCalibration.currentIndexChanged.connect(changeCalibration)
 
 # Image bining spinbox
-binfactorspin = QtGui.QSpinBox(maximum=16, minimum=1)
-binfactorspinlabel = QtGui.QLabel()
+binfactorspin = QSpinBox()
+binfactorspin.setRange(1, 16)
+binfactorspinlabel = QLabel()
 binfactorspinlabel.setStyleSheet("background-color: black; color:white")
-binfactorspinlabel.setAlignment(QtCore.Qt.AlignCenter)
+binfactorspinlabel.setAlignment(Qt.AlignCenter)
 binfactorspinlabel.setText("Raw image binning:")
 binfactorspinlabel.setMaximumHeight(20)
 binfactorspinlabel.setMaximumWidth(80)
 binfactorspinlabel.setBuddy(binfactorspinlabel)
-proxybinfactorspinlabel = QtGui.QGraphicsProxyWidget()
+proxybinfactorspinlabel = QGraphicsProxyWidget()
 proxybinfactorspinlabel.setWidget(binfactorspinlabel)
-proxybinfactorspin = QtGui.QGraphicsProxyWidget()
+proxybinfactorspin = QGraphicsProxyWidget()
 proxybinfactorspin.setWidget(binfactorspin)
 # binfactorspin.valueChanged.connect(set_I0_manually)
 
 # Manual I0 textbox
-Manual_i0 = QtGui.QSpinBox(maximum=1e9, minimum=0)
-Manual_i0label = QtGui.QLabel()
-Manual_i0label.setStyleSheet("background-color: black; color:white")
-Manual_i0label.setAlignment(QtCore.Qt.AlignCenter)
-Manual_i0label.setText("I0:")
-Manual_i0label.setMaximumHeight(20)
-Manual_i0label.setMaximumWidth(15)
-Manual_i0label.setBuddy(Manual_i0)
-proxyManual_i0label = QtGui.QGraphicsProxyWidget()
+anual_i0 = QSpinBox()
+anual_i0.setRange(0, 1000000000)
+anual_i0label = QLabel()
+anual_i0label.setStyleSheet("background-color: black; color:white")
+anual_i0label.setAlignment(Qt.AlignCenter)
+anual_i0label.setText("I0:")
+anual_i0label.setMaximumHeight(20)
+anual_i0label.setMaximumWidth(15)
+anual_i0label.setBuddy(Manual_i0)
+proxyManual_i0label = QGraphicsProxyWidget()
 proxyManual_i0label.setWidget(Manual_i0label)
-proxyManual_i0 = QtGui.QGraphicsProxyWidget()
+proxyManual_i0 = QGraphicsProxyWidget()
 proxyManual_i0.setWidget(Manual_i0)
-Manual_i0.valueChanged.connect(set_I0_manually)
+anual_i0.valueChanged.connect(set_I0_manually)
 
 # Aperture menu
-chooseAperture = QtGui.QComboBox()
-proxychooseAperture = QtGui.QGraphicsProxyWidget()
+chooseAperture = QComboBox()
+proxychooseAperture = QGraphicsProxyWidget()
 proxychooseAperture.setWidget(chooseAperture)
-chooseAperturelabel = QtGui.QLabel()
+chooseAperturelabel = QLabel()
 chooseAperturelabel.setText("Aperture (microns):")
-chooseAperturelabel.setAlignment(QtCore.Qt.AlignCenter)
+chooseAperturelabel.setAlignment(Qt.AlignCenter)
 chooseAperturelabel.setMaximumHeight(20)
 chooseAperturelabel.setMaximumWidth(120)
 chooseAperturelabel.setStyleSheet("background-color: black; color:white")
-proxychooseAperturelabel = QtGui.QGraphicsProxyWidget()
+proxychooseAperturelabel = QGraphicsProxyWidget()
 proxychooseAperturelabel.setWidget(chooseAperturelabel)
 
 # Image bining spinbox
-binfactorspin = QtGui.QSpinBox(maximum=16, minimum=1)
-binfactorspinlabel = QtGui.QLabel()
+binfactorspin = QSpinBox()
+binfactorspin.setRange(1, 16)
+binfactorspinlabel = QLabel()
 binfactorspinlabel.setStyleSheet("background-color: black; color:white")
-binfactorspinlabel.setAlignment(QtCore.Qt.AlignCenter)
+binfactorspinlabel.setAlignment(Qt.AlignCenter)
 binfactorspinlabel.setText("Raw image binning:")
 binfactorspinlabel.setMaximumHeight(20)
 binfactorspinlabel.setMaximumWidth(130)
 binfactorspinlabel.setBuddy(binfactorspinlabel)
-proxybinfactorspinlabel = QtGui.QGraphicsProxyWidget()
+proxybinfactorspinlabel = QGraphicsProxyWidget()
 proxybinfactorspinlabel.setWidget(binfactorspinlabel)
-proxybinfactorspin = QtGui.QGraphicsProxyWidget()
+proxybinfactorspin = QGraphicsProxyWidget()
 proxybinfactorspin.setWidget(binfactorspin)
 binfactorspin.setValue(2)
 
 # Gaussian filtering for ice thickness image
-icemapgausskernel = QtGui.QSpinBox(maximum=16, minimum=0)
-icemapgausskernellabel = QtGui.QLabel()
+icemapgausskernel = QSpinBox()
+icemapgausskernel.setRange(0, 16)
+icemapgausskernellabel = QLabel()
 icemapgausskernellabel.setStyleSheet("background-color: black; color:white")
-icemapgausskernellabel.setAlignment(QtCore.Qt.AlignCenter)
+icemapgausskernellabel.setAlignment(Qt.AlignCenter)
 icemapgausskernellabel.setText("Map spatial-filter kernel:")
 icemapgausskernellabel.setMaximumHeight(20)
 icemapgausskernellabel.setMaximumWidth(160)
 icemapgausskernellabel.setBuddy(icemapgausskernellabel)
-proxyicemapgausskernellabel = QtGui.QGraphicsProxyWidget()
+proxyicemapgausskernellabel = QGraphicsProxyWidget()
 proxyicemapgausskernellabel.setWidget(icemapgausskernellabel)
-proxyicemapgausskernel = QtGui.QGraphicsProxyWidget()
+proxyicemapgausskernel = QGraphicsProxyWidget()
 proxyicemapgausskernel.setWidget(icemapgausskernel)
 icemapgausskernel.setValue(2)
 icemapgausskernel.valueChanged.connect(measure_ice_thickness)
@@ -572,7 +569,7 @@ set_raw_image(initial_image())
 if __name__ == "__main__":
     import sys
 
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, "PYQT_VERSION"):
+    if sys.flags.interactive != 1:
         if len(sys.argv) > 1:
             h5path = sys.argv[1]
         else:
@@ -580,4 +577,4 @@ if __name__ == "__main__":
         # Load calibration data
         calibrations = load_calibration_data(h5path)
         chooseCalibration.addItems([x.name for x in calibrations])
-        QtGui.QApplication.instance().exec_()
+        QApplication.instance().exec_()

@@ -360,7 +360,7 @@ def generate_calibration_curves(
     # Initialize
     LogI0I = np.zeros((nt+1, napp))
 
-    # Use the GPU for the mutlislice calculation if it is not available
+    # Use the CPU for the multislice calculation if GPU is not available
     if device_type is None and torch.cuda.is_available():
         device = torch.device("cuda")
     else:
@@ -506,11 +506,10 @@ def generate_calibration_curves(
 
 
 def make_plot(
-    thicknesses, logII0, title="Intensity-ice thickness calibration", labels=None
+    thicknesses, logII0, title=None, labels=None
 ):
     """Generate an thickness - image intensity plot for reference"""
-    fig, ax = plt.subplots(figsize=(4, 4), ncols=1, constrained_layout=True)
-    tmax = max(thicknesses)
+    fig, ax = plt.subplots(figsize=(4, 4), ncols=1)
     colors = plt.get_cmap("viridis")(
         np.arange(len(obj_apertures)) / (len(obj_apertures) - 1)
     )
@@ -521,20 +520,19 @@ def make_plot(
     mdpnt = len(thicknesses)//2
     for I, c, label in zip(logII0.T, colors, labels):
         lam = fit_straight_line(thicknesses/10,I)
-        ax.plot(thicknesses / 10, np.exp(-I), linestyle="-", label=label+' {0:4d}'.format(int(1/lam)), c=c)
-
-        ax.text(thicknesses[mdpnt]/10,np.exp(-I[mdpnt])*1.05,r'$\lambda={0:4d}$'.format(int(1/lam)))
+        ax.plot(thicknesses / 10, np.exp(-I), linestyle="-", label=label, c=c)
+        ax.text(thicknesses[mdpnt]/10,np.exp(-I[mdpnt])*1.05,r'$\lambda={0:4d}$nm'.format(int(1/lam)))
 
     ax.legend()
-    ax.set_ylabel("I/I$_0$")
+    ax.set_ylabel("I/I$_0$ image intensity")
     ax.set_xlim([0.0, thicknesses.max() / 10])
     ax.set_ylim([max(0.1, np.exp(-logII0).min() - 0.2), 1])
     ax.set_yscale("log")
-    ax.set_xlabel("Thickness (nm)")
-
-    # ax.set_ylim([0, tmax / 10])
+    ax.grid()
+    ax.set_xlabel("Ice thickness (nm)")
     ax.set_title(title)
-    # fig.tight_layout()
+    fig.tight_layout()
+
     return fig
 
 
@@ -592,7 +590,7 @@ def fit_straight_line(x,y,force_zero_origin=False):
 
 def output_result(keV, microscopename, thicknesses, LogII0, obj_apertures, appunits,Aperturemicron,carbon=None):
 
-    line = "For objective aperture #{0}: {1} {2} (labelled {3}) lambda = {4:4d}\n"
+    line = "For objective aperture #{0}: {1} {2} ({3}um) lambda = {4:4d}nm\n"
     cstring = ''
     if carbon is not None:
         cstring = " with a carbon layer of thickness {0} nm".format(carbon)
@@ -631,7 +629,7 @@ def print_help():
     )
     description += "-P, --Plot            Generate reference I/I0 vs thickness plot, optional\n"
     description += "-I, --imfp            User provided electron inelastic mean free path in nm, optional\n"
-    description += "-C, --carbon          Option of adding an amorphous carbon layer to simulate carbon backed grids\n"
+    description += "-C, --carbon          Option of adding an amorphous carbon layer (in nm) to simulate carbon backed grid\n"
     print(description)
 
 
@@ -663,7 +661,6 @@ if __name__ == "__main__":
     app_units = "invA"
     Aperturemicron = None
     outputfilename = "Calibration.hdf"
-    microscopename = None
     plot = False
     imfp_prov = None
     carbon = None
@@ -754,9 +751,9 @@ if __name__ == "__main__":
 
     # Plot calibration curves if requested
     if plot:
-        title = "{0} ice thickness - image intensity calibration curve"
+        title = f"{microscopename} {int(keV)} kV"
         title = title.format(microscopename)
-        labels = ["{0} {1}".format(x, labelunits) for x in Aperturemicron]
+        labels = [f"{x}mrad ({y}um)" for x, y in zip(obj_apertures, Aperturemicron)]
         fig = make_plot(thicknesses, LogII0, title=title, labels=labels)
         fig.savefig(plotfile)
 

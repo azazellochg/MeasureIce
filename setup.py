@@ -3,13 +3,13 @@ from setuptools import setup, find_packages
 
 setup(
     name="measureIce",
-    version="0.1",
+    version="0.2",
     description="A software tool for measuring ice thickness in cryo-EM",
     author="Hamish Brown",
     author_email="hgbrown@unimelb.edu.au",
     url="https://github.com/HamishGBrown/measureIce/",
     packages=find_packages(),
-    scripts=['Generate_MeasureIce_calibration.py', 'MeasureIce.py','ser.py'],
+    scripts=['Generate_MeasureIce_calibration.py', 'MeasureIce.py', 'ser.py'],
     install_requires=[
         "h5py >= 2.10",
         "ipython >= 4.0",
@@ -21,7 +21,7 @@ setup(
         "tqdm >= 4.48",
         "ase",
         "pypng",
-        "pyqtgraph",
+        "pyqtgraph <= 0.11.1",
         "black",
         "PyQT5",
         "mrcfile"
